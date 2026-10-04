@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<title>営業管理</title>
+<style>
+  :root{--bg:#f5f5f7;--card:#fff;--ink:#1d1d1f;--mute:#8a8a8e;--line:#eee;--pri:#0f7c80;--pri-weak:#e3f3f3;--warn:#fff3cd;--err:#ffe8e8;}
+  *{box-sizing:border-box;}
+  body{font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;margin:0;background:var(--bg);color:var(--ink);}
+  .wrap{max-width:480px;margin:0 auto;padding:12px 16px 96px;}
+  h1{font-size:19px;margin:8px 0 12px;}
+  .card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+  input,select,textarea{width:100%;padding:12px;font-size:17px;border:1px solid #ccc;border-radius:8px;font-family:inherit;background:#fff;color:var(--ink);}
+  textarea{min-height:72px;resize:vertical;}
+  label.lb{display:block;font-size:13px;color:var(--mute);font-weight:700;margin:14px 0 6px;}
+  button{font-size:16px;border:none;border-radius:10px;padding:12px;background:var(--pri);color:#fff;cursor:pointer;font-family:inherit;}
+  button.sub{background:#eef0f3;color:var(--ink);}
+  button:disabled{opacity:.5;cursor:default;}
+  .full{width:100%;margin-top:16px;}
+  .who{font-size:12px;color:var(--mute);display:flex;justify-content:space-between;margin-bottom:8px;}
+  .who a{color:var(--pri);}
+  .tabs{display:flex;gap:6px;margin:10px 0;}
+  .tabs button{flex:1;background:#e6e8eb;color:var(--ink);white-space:nowrap;padding:12px 4px;font-size:15px;}
+  .tabs button.on{background:var(--pri);color:#fff;}
+  .seg{display:flex;gap:6px;flex-wrap:wrap;}
+  .seg button{flex:1;min-width:72px;background:#eef0f3;color:var(--ink);padding:12px 6px;}
+  .seg button.on{background:var(--pri);color:#fff;}
+  .seg.res button.on[data-v="不在"]{background:#6b6b70;}
+  /* 1件ずつ／まとめて は上のタブと見分けがつくよう、枠線の切り替えにする */
+  .seg.mode button{background:#fff;color:var(--mute);border:1px solid #d6d6db;padding:9px 6px;font-size:15px;}
+  .seg.mode button.on{background:var(--pri-weak);color:var(--pri);border-color:var(--pri);font-weight:700;}
+  .seg.res button.on[data-v="問い合わせ"]{background:#c76b00;}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;}
+  .chips label{display:flex;align-items:center;gap:6px;background:#eef0f3;border-radius:18px;padding:8px 12px;font-size:15px;}
+  .chips input{width:18px;height:18px;margin:0;}
+  .digest{background:#f7f8fa;border-radius:8px;padding:10px;font-size:14px;margin-top:8px;white-space:pre-line;}
+  .inq{border:2px solid #f0c27a;border-radius:10px;padding:4px 12px 12px;margin-top:14px;background:#fffaf0;}
+  .row{display:flex;gap:8px;align-items:center;}
+  .row>*{flex:1;min-width:0;}
+  .ent{border-bottom:1px solid var(--line);padding:10px 0;}
+  .ent .nm{display:flex;align-items:center;gap:10px;font-size:16px;}
+  .ent .nm input{width:22px;height:22px;flex:none;}
+  .ent .opts{margin-top:8px;}
+  .tag{font-size:12px;border-radius:10px;padding:2px 8px;background:#eef0f3;color:#555;white-space:nowrap;}
+  .tag.inq{background:#fff0d6;color:#8a5a00;}
+  .tag.mine{background:var(--pri-weak);color:var(--pri);}
+  .rec{padding:10px 0;border-bottom:1px solid var(--line);}
+  .rec .top{display:flex;gap:8px;align-items:center;font-size:15px;}
+  .rec .top b{flex:1;min-width:0;}
+  .rec .memo{font-size:13px;color:#555;margin-top:4px;white-space:pre-line;}
+  .rec .acts{display:flex;gap:8px;margin-top:6px;}
+  .rec .acts button{padding:6px 12px;font-size:13px;}
+  .rec .acts button.del{background:#eef0f3;color:#b00;}
+  .hint{font-size:12px;color:var(--mute);margin-top:4px;}
+  .muted{color:var(--mute);font-size:13px;}
+  .hidden{display:none !important;}
+  #msg{position:fixed;top:8px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:448px;z-index:20;}
+  .msg{padding:12px;border-radius:10px;font-size:15px;white-space:pre-line;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+  .msg.err{background:var(--err);color:#b00;}
+  .msg.ok{background:var(--pri-weak);color:var(--pri);}
+  .msg.wait{background:#1d1d1f;color:#fff;}
+  .ovl{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center;z-index:10;}
+  .sheet{background:var(--card);width:100%;max-width:480px;max-height:88vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:16px 16px 28px;}
+  .sheet h2{font-size:18px;margin:0 0 6px;}
+  #askOvl{z-index:25;align-items:center;padding:16px;}
+  #askOvl .sheet{border-radius:16px;}
+  #askText{font-size:16px;line-height:1.7;white-space:pre-line;}
+  .askBtns{display:flex;gap:10px;margin-top:18px;}
+  .askBtns button{flex:1;padding:14px 8px;}
+  .names button{display:block;width:100%;margin-top:8px;background:var(--pri-weak);color:var(--pri);font-size:17px;}
+  button{-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:transform .07s ease,filter .07s ease;}
+  button:active:not(:disabled){transform:scale(.96);filter:brightness(.88);}
+  #asName{font-size:13px;}
+  #asName a{color:var(--pri);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>営業管理</h1>
+  <div id="msg"></div>
+
+  <div id="vLogin" class="card hidden">
+    <div class="muted">リハ部のPINを入れてください</div>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="off" style="margin-top:8px;">
+    <div id="asName" class="hint" style="margin-top:8px"></div>
+    <button id="btnPin" class="full">次へ</button>
+  </div>
+
+  <div id="vNames" class="card hidden">
+    <div class="muted">自分の名前を選んでください</div>
+    <div id="names" class="names"></div>
+  </div>
+
+  <div id="vMain" class="hidden">
+    <div class="who"><span id="me"></span><a href="#" id="logout">ログアウト</a></div>
+    <div class="tabs">
+      <button id="tabRec" class="on">記録する</button>
+      <button id="tabList">最近の記録</button>
+    </div>
+
+    <div id="pRec">
+      <div class="seg mode" style="margin-bottom:10px">
+        <button id="modeOne" class="on">1件ずつ</button>
+        <button id="modeBatch">まとめて</button>
+      </div>
+
+      <div id="fOne" class="card">
+        <label class="lb">日付</label>
+        <input id="oDate" type="date">
+        <label class="lb">地域</label>
+        <select id="oArea"></select>
+        <label class="lb">事業所</label>
+        <select id="oOffice"></select>
+        <div id="oDigest" class="digest hidden"></div>
+        <label class="lb">相手</label>
+        <select id="oPartner"></select>
+        <input id="oOther" class="hidden" placeholder="相手の名前（相談員など）" style="margin-top:8px">
+        <label class="lb">手段</label>
+        <div id="oMeans" class="seg"></div>
+        <label class="lb">持って行った物</label>
+        <div id="oItems" class="chips"></div>
+        <label class="lb">結果</label>
+        <div id="oResult" class="seg res"></div>
+        <div class="hint">ケアマネ本人と話せたら「接触」。利用者の話が出たら「問い合わせ」。</div>
+        <div id="oInq" class="inq hidden"></div>
+        <label class="lb">メモ（事業所の様子・次に話すこと など）</label>
+        <textarea id="oMemo"></textarea>
+        <button id="oSave" class="full">保存する</button>
+      </div>
+
+      <div id="fBatch" class="card hidden">
+        <div class="muted">同じ日に同じ物を持って回った事業所を、まとめて記録します。</div>
+        <label class="lb">日付</label>
+        <input id="bDate" type="date">
+        <label class="lb">手段</label>
+        <div id="bMeans" class="seg"></div>
+        <label class="lb">持って行った物</label>
+        <div id="bItems" class="chips"></div>
+        <label class="lb">地域</label>
+        <select id="bArea"></select>
+        <label class="lb">回った事業所にチェックして、相手と結果を選ぶ</label>
+        <div id="bList"></div>
+        <button id="bSave" class="full">まとめて保存する</button>
+      </div>
+    </div>
+
+    <div id="pList" class="card hidden"></div>
+  </div>
+</div>
+
+<div id="ovl" class="ovl hidden"><div class="sheet" id="sheet"></div></div>
+<!-- 確認（はい／いいえ）。ブラウザ標準の confirm は LINE 等のアプリ内ブラウザで出ないことがあるので使わない -->
+<div id="askOvl" class="ovl hidden"><div class="sheet">
+  <div id="askText"></div>
+  <div class="askBtns"><button id="askNo" class="sub"></button><button id="askOk"></button></div>
+</div></div>
+
+<script>
+(function () {
+  'use strict';
+  var API_URL = 'https://script.google.com/macros/s/AKfycbz5Mw7JkoRxBDFWlk7v8MZmq9MzoPbHpx6Ig6MmWGoybxUiXA6NXAU9wHf32FuMduxJ/exec';
+  var TOKEN_KEY = 'eigyou_token', DEVICE_KEY = 'eigyou_device', NAME_KEY = 'eigyou_name';
+  var WD = ['日', '月', '火', '水', '木', '金', '土'];
+  var OTHER = 'その他:';
+  // rid：保存が成功するか入力を変えるまで同じ requestId を使う（返事が届かず押し直しても二重に書かれない）
+  var S = { ticket: '', d: null, one: { means: '訪問', result: '', rid: '' }, batch: { means: '訪問', checked: {}, rid: '' } };
+
+  function $(id) { return document.getElementById(id); }
+  // 事業所名・ケアマネ名・利用者名はシート由来なので、必ず textContent で入れる（innerHTML に混ぜない）
+  function el(tag, props, kids) {
+    var e = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) {
+      if (k === 'text') e.textContent = props[k];
+      else if (k === 'cls') e.className = props[k];
+      else if (k === 'value') e.value = props[k];
+      else if (k === 'checked') e.checked = !!props[k];
+      else if (k.indexOf('on') === 0) e.addEventListener(k.slice(2), props[k]);
+      else e.setAttribute(k, props[k]);
+    });
+    (kids || []).forEach(function (c) { if (c) e.appendChild(c); });
+    return e;
+  }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+  function show(id) {
+    ['vLogin', 'vNames', 'vMain'].forEach(function (v) { $(v).classList.toggle('hidden', v !== id); });
+    if (id === 'vLogin') showAsName();
+  }
+  function showAsName() {
+    var box = $('asName'); clear(box);
+    var n = load(NAME_KEY);
+    if (!n) return;
+    box.appendChild(el('span', { text: n + ' さんとして入ります　' }));
+    box.appendChild(el('a', { href: '#', text: '名前を変える', onclick: function (e) { e.preventDefault(); store(NAME_KEY, null); showAsName(); } }));
+  }
+  function msg(text, kind) {
+    var m = $('msg'); clear(m);
+    if (text) m.appendChild(el('div', { cls: 'msg ' + (kind || 'err'), text: text }));
+    if (kind === 'ok') setTimeout(function () { if (m.textContent === text) clear(m); }, 2500);
+  }
+  $('msg').addEventListener('click', function () { clear(this); });
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function deviceId() {
+    var v = load(DEVICE_KEY);
+    if (!v) { v = 'd' + Math.random().toString(36).slice(2) + Date.now().toString(36); store(DEVICE_KEY, v); }
+    return v.slice(0, 64);
+  }
+  function shift(d, n) { var t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); }
+  function dateJa(d) { var t = new Date(d + 'T00:00:00Z'); return (t.getUTCMonth() + 1) + '/' + t.getUTCDate() + '（' + WD[t.getUTCDay()] + '）'; }
+  function newRequestId() {
+    try { return crypto.randomUUID(); } catch (e) { return 'r' + Math.random().toString(36).slice(2) + Date.now().toString(36); }
+  }
+
+  // Google 側の結果配信が遅れたり「ページが見つかりません」を返す障害がある（yuryo・モニタリングで確認）。
+  // 返事が HEDGE_MS 来なければ同じ依頼をもう1通重ねて送り、先に返った方を使う。
+  // 書き込み系は同じ requestId なので、サーバは1回しか書かない。
+  var SEND_MAX = 5, HEDGE_MS = 8000, ATTEMPT_TIMEOUT_MS = 20000;
+  function post(body) {
+    if (!API_URL) return Promise.reject(new Error('API の URL が未設定です（管理者へ連絡してください）'));
+    return new Promise(function (resolve, reject) {
+      var sent = 0, pending = 0, done = false, lastErr = null, ctls = [], hedgeTimer = null;
+      function finish(ok, val) {
+        if (done) return;
+        done = true;
+        clearTimeout(hedgeTimer);
+        ctls.forEach(function (c) { try { c.abort(); } catch (e) {} });
+        if (ok) resolve(val); else reject(val);
+      }
+      function settled() {
+        if (done || pending > 0) return;
+        if (lastErr) { finish(false, lastErr); return; }
+        if (sent < SEND_MAX) { setTimeout(fire, 500 * Math.pow(2, sent - 1)); return; }
+        finish(false, new Error('通信がうまくいきませんでした。電波の良い所でもう一度お試しください'));
+      }
+      function fire() {
+        if (done || sent >= SEND_MAX) return;
+        sent++; pending++;
+        if (sent > 1) msg('通信に時間がかかっています。もう一度送っています（' + sent + '/' + SEND_MAX + '）…', 'wait');
+        var ctl = typeof AbortController === 'function' ? new AbortController() : null;
+        if (ctl) ctls.push(ctl);
+        var timer = ctl ? setTimeout(function () { ctl.abort(); }, ATTEMPT_TIMEOUT_MS) : null;
+        fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                         body: JSON.stringify(body), signal: ctl ? ctl.signal : undefined })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (!j || typeof j !== 'object') throw new Error('bad');
+            pending--;
+            if (j.ok) { finish(true, j.data); return; }
+            if (j.authError && body.action !== 'login') {
+              store(TOKEN_KEY, null); show('vLogin');
+              finish(false, new Error(j.error)); return;
+            }
+            lastErr = new Error(j.error || 'エラーが発生しました');
+            settled();
+          })
+          .catch(function () { pending--; settled(); })
+          .then(function () { if (timer) clearTimeout(timer); });
+        clearTimeout(hedgeTimer);
+        hedgeTimer = setTimeout(function () { if (!done && !lastErr) fire(); }, HEDGE_MS);
+      }
+      fire();
+    });
+  }
+  function authed(action, extra) {
+    return post(Object.assign({ action: action, token: load(TOKEN_KEY), requestId: newRequestId() }, extra || {}));
+  }
+
+  function ask(text, okLabel, noLabel) {
+    return new Promise(function (resolve) {
+      var o = $('askOvl');
+      $('askText').textContent = text;
+      $('askOk').textContent = okLabel || 'はい';
+      $('askNo').textContent = noLabel || 'やめる';
+      function done(v) { o.classList.add('hidden'); o.onclick = null; resolve(v); }
+      $('askOk').onclick = function () { done(true); };
+      $('askNo').onclick = function () { done(false); };
+      o.onclick = function (e) { if (e.target === o) done(false); };
+      o.classList.remove('hidden');
+    });
+  }
+
+  // ── ログイン ──
+  $('btnPin').addEventListener('click', async function () {
+    var btn = this;
+    btn.disabled = true; msg('確認中…', 'wait');
+    try {
+      var d = await post({ action: 'login', pin: $('pin').value, deviceId: deviceId(), name: load(NAME_KEY), requestId: newRequestId() });
+      $('pin').value = '';
+      msg('');
+      if (d.token) { store(TOKEN_KEY, d.token); await start(); return; }
+      S.ticket = d.ticket;
+      var box = $('names'); clear(box);
+      d.names.forEach(function (n) { box.appendChild(el('button', { text: n, onclick: function () { choose(n); } })); });
+      show('vNames');
+    } catch (e) { msg(e.message); } finally { btn.disabled = false; }
+  });
+  $('pin').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btnPin').click(); });
+  async function choose(name) {
+    try {
+      msg('確認中…', 'wait');
+      var d = await post({ action: 'chooseName', ticket: S.ticket, name: name, requestId: newRequestId() });
+      S.ticket = '';
+      store(TOKEN_KEY, d.token);
+      store(NAME_KEY, d.name);
+      msg('');
+      await start();
+    } catch (e) { msg(e.message); show('vLogin'); }
+  }
+  $('logout').addEventListener('click', async function (e) {
+    e.preventDefault();
+    try { await authed('logout'); } catch (x) {}
+    store(TOKEN_KEY, null); show('vLogin');
+  });
+
+  // ── 起動 ──
+  async function start() {
+    try {
+      msg('読み込み中…', 'wait');
+      S.d = await authed('init');
+      msg('');
+      $('me').textContent = S.d.me + ' さん' + (S.d.admin ? '（管理者）' : '');
+      buildForms();
+      show('vMain');
+    } catch (e) { msg(e.message); show('vLogin'); }
+  }
+
+  function officeById(id) { return S.d.offices.filter(function (o) { return o.id === id; })[0]; }
+  function cmName(id) { var c = S.d.cms.filter(function (x) { return x.id === id; })[0]; return c ? c.name : id; }
+  function partnerLabel(p) { return p.indexOf(OTHER) === 0 ? p.slice(OTHER.length) : (/^C\d+$/.test(p) ? cmName(p) : p); }
+  // 自分が担当の事業所を先に、あとは名前順
+  function sortedOffices(area) {
+    var me = S.d.me;
+    return S.d.offices.filter(function (o) { return !area || o.area === area; }).slice().sort(function (a, b) {
+      var x = a.staff === me ? 0 : 1, y = b.staff === me ? 0 : 1;
+      return x - y || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    });
+  }
+  function areaOptions(sel) {
+    clear(sel);
+    sel.appendChild(el('option', { value: '', text: 'すべての地域' }));
+    var seen = {};
+    S.d.offices.forEach(function (o) { if (o.area && !seen[o.area]) { seen[o.area] = 1; sel.appendChild(el('option', { value: o.area, text: o.area })); } });
+  }
+  function segment(box, values, current, onPick) {
+    clear(box);
+    values.forEach(function (v) {
+      box.appendChild(el('button', { type: 'button', text: v, 'data-v': v, cls: v === current ? 'on' : '', onclick: function () {
+        Array.prototype.forEach.call(box.children, function (b) { b.classList.toggle('on', b.getAttribute('data-v') === v); });
+        onPick(v);
+      } }));
+    });
+  }
+  function itemChips(box) {
+    clear(box);
+    S.d.items.forEach(function (it) { box.appendChild(el('label', {}, [el('input', { type: 'checkbox', value: it }), el('span', { text: it })])); });
+  }
+  function checkedItems(box) {
+    return Array.prototype.filter.call(box.querySelectorAll('input'), function (i) { return i.checked; }).map(function (i) { return i.value; });
+  }
+  function partnerSelect(sel, officeId) {
+    clear(sel);
+    sel.appendChild(el('option', { value: '', text: '選んでください' }));
+    S.d.cms.filter(function (c) { return c.officeId === officeId; }).forEach(function (c) { sel.appendChild(el('option', { value: c.id, text: c.name })); });
+    ['不在', '事務員'].forEach(function (p) { sel.appendChild(el('option', { value: p, text: p })); });
+    sel.appendChild(el('option', { value: OTHER, text: 'その他（名前を入れる）' }));
+  }
+  function setDateLimits(input) {
+    input.max = S.d.today;
+    input.min = shift(S.d.today, -S.d.pastDays);
+    input.value = S.d.today;
+  }
+
+  // 利用者情報の入力欄（1件入力の中と、まとめ入力のあとのシートで使う）
+  function inquiryFields(box) {
+    clear(box);
+    box.appendChild(el('label', { cls: 'lb', text: '利用者の情報（分かる範囲で）' }));
+    box.appendChild(el('input', { id: box.id + 'Client', placeholder: '利用者名（不明なら空欄）' }));
+    box.appendChild(el('input', { id: box.id + 'Disease', placeholder: '疾患名', style: 'margin-top:8px' }));
+    box.appendChild(el('textarea', { id: box.id + 'Trouble', placeholder: '困り事・案件の内容', style: 'margin-top:8px' }));
+    var lv = el('select', { id: box.id + 'Level' });
+    S.d.careLevels.forEach(function (v) { lv.appendChild(el('option', { value: v, text: v || '介護度（不明なら空欄）' })); });
+    var ne = el('select', { id: box.id + 'New' });
+    S.d.newOrExisting.forEach(function (v) { ne.appendChild(el('option', { value: v, text: v || '新規／既存' })); });
+    box.appendChild(el('div', { cls: 'row', style: 'margin-top:8px' }, [lv, ne]));
+  }
+  function readInquiry(box) {
+    return { client: $(box.id + 'Client').value, disease: $(box.id + 'Disease').value, trouble: $(box.id + 'Trouble').value,
+             careLevel: $(box.id + 'Level').value, newOrExisting: $(box.id + 'New').value };
+  }
+
+  // ── 1件ずつ ──
+  function buildForms() {
+    setDateLimits($('oDate')); setDateLimits($('bDate'));
+    areaOptions($('oArea')); areaOptions($('bArea'));
+    segment($('bMeans'), S.d.means, S.batch.means, function (v) { S.batch.means = v; S.batch.rid = ''; });
+    itemChips($('bItems'));
+    resetOne();
+    renderBatchList();
+  }
+  // 1件の入力欄だけを空に戻す（日付・地域はそのまま。まとめ入力の欄には触らない）
+  function resetOne() {
+    $('oOffice').value = '';
+    fillOffices();
+    segment($('oMeans'), S.d.means, S.one.means, function (v) { S.one.means = v; S.one.rid = ''; });
+    segment($('oResult'), S.d.results, '', function (v) {
+      S.one.result = v; S.one.rid = '';
+      $('oInq').classList.toggle('hidden', v !== '問い合わせ');
+    });
+    S.one.result = '';
+    S.one.rid = '';
+    itemChips($('oItems'));
+    inquiryFields($('oInq'));
+    $('oInq').classList.add('hidden');
+    $('oMemo').value = '';
+  }
+  $('fOne').addEventListener('input', function () { S.one.rid = ''; });
+  $('fOne').addEventListener('change', function () { S.one.rid = ''; });
+  $('fBatch').addEventListener('input', function () { S.batch.rid = ''; });
+  $('fBatch').addEventListener('change', function () { S.batch.rid = ''; });
+  function fillOffices() {
+    var sel = $('oOffice'), keep = sel.value;
+    clear(sel);
+    sel.appendChild(el('option', { value: '', text: '選んでください' }));
+    sortedOffices($('oArea').value).forEach(function (o) {
+      sel.appendChild(el('option', { value: o.id, text: o.name + (o.staff === S.d.me ? '（担当）' : '') }));
+    });
+    sel.value = keep && officeById(keep) && (!$('oArea').value || officeById(keep).area === $('oArea').value) ? keep : '';
+    onOffice();
+  }
+  $('oArea').addEventListener('change', fillOffices);
+  $('oOffice').addEventListener('change', onOffice);
+  async function onOffice() {
+    var id = $('oOffice').value;
+    partnerSelect($('oPartner'), id);
+    $('oOther').classList.add('hidden');
+    var box = $('oDigest');
+    box.classList.add('hidden');
+    if (!id) return;
+    try {
+      var g = await authed('office', { officeId: id });
+      if ($('oOffice').value !== id) return;
+      var lines = [];
+      lines.push(g.lastDate ? '前回 ' + dateJa(g.lastDate) + ' ' + g.lastStaff + (g.lastMemo ? '\n' + g.lastMemo : '') : 'まだ記録がありません');
+      if (g.openCases.length) lines.push('進行中の案件 ' + g.openCases.length + '件');
+      box.textContent = lines.join('\n');
+      box.classList.remove('hidden');
+    } catch (e) { /* 見返しが出なくても記録はできる */ }
+  }
+  $('oPartner').addEventListener('change', function () {
+    $('oOther').classList.toggle('hidden', this.value !== OTHER);
+    if (this.value === '不在' && !S.one.result) $('oResult').querySelector('[data-v="不在"]').click();
+  });
+  function partnerValue(sel, other) {
+    return sel.value === OTHER ? OTHER + other.value.trim() : sel.value;
+  }
+  $('oSave').addEventListener('click', async function () {
+    var btn = this;
+    if (!$('oOffice').value) { msg('事業所を選んでください'); return; }
+    if (!S.one.result) { msg('結果を選んでください'); return; }
+    var body = { visit: { date: $('oDate').value, officeId: $('oOffice').value, partner: partnerValue($('oPartner'), $('oOther')),
+      means: S.one.means, items: checkedItems($('oItems')), result: S.one.result, memo: $('oMemo').value } };
+    if (S.one.result === '問い合わせ') body.inquiry = readInquiry($('oInq'));
+    if (!S.one.rid) S.one.rid = newRequestId();
+    body.requestId = S.one.rid;
+    btn.disabled = true; msg('保存しています…', 'wait');
+    try {
+      var r = await authed('saveVisit', body);
+      msg(r.caseId ? '保存しました（案件も作りました）' : '保存しました', 'ok');
+      resetOne();
+    } catch (e) { msg(e.message); } finally { btn.disabled = false; }
+  });
+
+  // ── まとめて ──
+  function renderBatchList() {
+    var box = $('bList'); clear(box);
+    sortedOffices($('bArea').value).forEach(function (o) {
+      var st = S.batch.checked[o.id];
+      var cb = el('input', { type: 'checkbox', checked: !!st, onchange: function () {
+        if (this.checked) S.batch.checked[o.id] = { partner: '', other: '', result: '接触' };
+        else delete S.batch.checked[o.id];
+        S.batch.rid = '';
+        renderBatchList();
+      } });
+      var ent = el('div', { cls: 'ent' }, [el('label', { cls: 'nm' }, [cb, el('span', { text: o.name }),
+        o.staff === S.d.me ? el('span', { cls: 'tag mine', text: '担当' }) : null])]);
+      if (st) {
+        var sel = el('select', {});
+        partnerSelect(sel, o.id);
+        sel.value = st.partner;
+        var other = el('input', { placeholder: '相手の名前', value: st.other, cls: st.partner === OTHER ? '' : 'hidden', style: 'margin-top:8px',
+          oninput: function () { st.other = this.value; } });
+        sel.addEventListener('change', function () {
+          st.partner = this.value;
+          other.classList.toggle('hidden', this.value !== OTHER);
+          if (this.value === '不在') { st.result = '不在'; renderBatchList(); }
+        });
+        var res = el('div', { cls: 'seg res', style: 'margin-top:8px' });
+        segment(res, S.d.results, st.result, function (v) { st.result = v; S.batch.rid = ''; });
+        ent.appendChild(el('div', { cls: 'opts' }, [sel, other, res]));
+      }
+      box.appendChild(ent);
+    });
+    var n = Object.keys(S.batch.checked).length;
+    $('bSave').textContent = n ? n + '件をまとめて保存する' : 'まとめて保存する';
+  }
+  $('bArea').addEventListener('change', renderBatchList);
+  $('bSave').addEventListener('click', async function () {
+    var btn = this;
+    var ids = Object.keys(S.batch.checked);
+    if (!ids.length) { msg('事業所にチェックしてください'); return; }
+    var missing = ids.filter(function (id) {
+      var st = S.batch.checked[id];
+      return !st.partner || (st.partner === OTHER && !st.other.trim());
+    }).map(function (id) { return officeById(id).name; });
+    if (missing.length) { msg('相手を選んでください：' + missing.join('、')); return; }
+    var entries = ids.map(function (id) {
+      var st = S.batch.checked[id];
+      return { officeId: id, partner: st.partner === OTHER ? OTHER + st.other.trim() : st.partner, result: st.result };
+    });
+    if (!S.batch.rid) S.batch.rid = newRequestId();
+    btn.disabled = true; msg('保存しています…', 'wait');
+    try {
+      var r = await authed('saveBatch', { requestId: S.batch.rid,
+        batch: { date: $('bDate').value, means: S.batch.means, items: checkedItems($('bItems')), entries: entries } });
+      S.batch.checked = {};
+      S.batch.rid = '';
+      renderBatchList();
+      var inq = r.saved.filter(function (s) { return s.result === '問い合わせ'; });
+      msg(r.saved.length + '件を保存しました', 'ok');
+      for (var i = 0; i < inq.length; i++) await askInquiry(inq[i].id, officeById(inq[i].officeId));
+    } catch (e) { msg(e.message); } finally { btn.disabled = false; }
+  });
+
+  // まとめ入力の問い合わせ・最近の記録から、利用者情報を入れて案件を作る
+  function askInquiry(visitId, office) {
+    return new Promise(function (resolve) {
+      var sh = $('sheet'); clear(sh);
+      sh.appendChild(el('h2', { text: '問い合わせの利用者情報' }));
+      sh.appendChild(el('div', { cls: 'muted', text: office ? office.name : '' }));
+      var box = el('div', { id: 'sInq' });
+      sh.appendChild(box);
+      inquiryFields(box);
+      var rid = newRequestId();
+      box.addEventListener('input', function () { rid = newRequestId(); });
+      box.addEventListener('change', function () { rid = newRequestId(); });
+      var later = el('button', { cls: 'sub', text: 'あとで入れる', onclick: function () { close(); } });
+      var save = el('button', { text: '案件を作る', onclick: async function () {
+        save.disabled = true; msg('保存しています…', 'wait');
+        try {
+          await authed('attachCase', { requestId: rid, visitId: visitId, inquiry: readInquiry(box) });
+          msg('案件を作りました', 'ok');
+          close();
+        } catch (e) { msg(e.message); save.disabled = false; }
+      } });
+      sh.appendChild(el('div', { cls: 'askBtns' }, [later, save]));
+      $('ovl').classList.remove('hidden');
+      function close() { $('ovl').classList.add('hidden'); resolve(); }
+    });
+  }
+
+  // ── 最近の記録 ──
+  async function renderList() {
+    var box = $('pList'); clear(box);
+    box.appendChild(el('div', { cls: 'muted', text: '読み込み中…' }));
+    var list;
+    try { list = await authed('myRecent'); } catch (e) { msg(e.message); return; }
+    clear(box);
+    box.appendChild(el('div', { cls: 'muted', text: '自分の記録（' + S.d.pastDays + '日分）。間違えた記録は取り消せます。' }));
+    if (!list.length) { box.appendChild(el('div', { cls: 'muted', style: 'margin-top:12px', text: 'まだ記録がありません' })); return; }
+    list.forEach(function (v) {
+      var o = officeById(v.officeId);
+      var acts = el('div', { cls: 'acts' });
+      if (v.result === '問い合わせ' && !v.caseId) {
+        acts.appendChild(el('button', { text: '利用者情報を入れる', onclick: async function () { await askInquiry(v.id, o); renderList(); } }));
+      }
+      if (!v.caseId) {
+        acts.appendChild(el('button', { cls: 'del', text: '取り消す', onclick: async function () {
+          if (!(await ask(dateJa(v.date) + ' ' + (o ? o.name : '') + ' の記録を取り消しますか？', '取り消す', 'やめる'))) return;
+          try { await authed('deleteVisit', { id: v.id }); msg('取り消しました', 'ok'); renderList(); } catch (e) { msg(e.message); }
+        } }));
+      }
+      box.appendChild(el('div', { cls: 'rec' }, [
+        el('div', { cls: 'top' }, [el('span', { text: dateJa(v.date) }), el('b', { text: o ? o.name : v.officeId }),
+          el('span', { cls: 'tag' + (v.result === '問い合わせ' ? ' inq' : ''), text: v.result })]),
+        el('div', { cls: 'memo', text: v.means + '・' + partnerLabel(v.partner) + (v.items.length ? '・' + v.items.join('、') : '') + (v.memo ? '\n' + v.memo : '') }),
+        acts]));
+    });
+  }
+
+  // ── 切り替え ──
+  function tab(on) {
+    $('tabRec').classList.toggle('on', on === 'rec'); $('tabList').classList.toggle('on', on === 'list');
+    $('pRec').classList.toggle('hidden', on !== 'rec'); $('pList').classList.toggle('hidden', on !== 'list');
+    if (on === 'list') renderList();
+  }
+  $('tabRec').addEventListener('click', function () { tab('rec'); });
+  $('tabList').addEventListener('click', function () { tab('list'); });
+  function mode(m) {
+    $('modeOne').classList.toggle('on', m === 'one'); $('modeBatch').classList.toggle('on', m === 'batch');
+    $('fOne').classList.toggle('hidden', m !== 'one'); $('fBatch').classList.toggle('hidden', m !== 'batch');
+  }
+  $('modeOne').addEventListener('click', function () { mode('one'); });
+  $('modeBatch').addEventListener('click', function () { mode('batch'); });
+
+  if (load(TOKEN_KEY)) start(); else show('vLogin');
+})();
+</script>
+</body>
+</html>
