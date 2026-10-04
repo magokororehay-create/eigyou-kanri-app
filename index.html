@@ -61,6 +61,28 @@
   .slot .st{width:4.5em;flex:none;font-weight:700;}
   .slot.pref .st{color:var(--pri);}
   .slot .tm{flex:1;}
+  .kpi{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+  .kpi div{background:#f7f8fa;border-radius:10px;padding:10px;}
+  .kpi b{display:block;font-size:22px;font-variant-numeric:tabular-nums;}
+  .kpi small{color:var(--mute);font-size:12px;}
+  .kpi .ok{color:var(--pri);}
+  .kpi .short{color:#b05a00;}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px;text-align:center;font-size:12px;}
+  .cal .h{color:var(--mute);}
+  .cal .d{background:#f7f8fa;border-radius:6px;padding:4px 0;min-height:38px;}
+  .cal .d b{display:block;font-size:15px;color:var(--pri);}
+  .cal .d.off{background:none;}
+  .stale{display:flex;gap:8px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line);cursor:pointer;}
+  .stale .nm{flex:1;min-width:0;font-size:16px;}
+  .stale .ds{font-size:13px;color:var(--mute);white-space:nowrap;}
+  .stale.over .ds{color:#c0392b;font-weight:700;}
+  .case{padding:12px 2px;border-bottom:1px solid var(--line);cursor:pointer;}
+  .case .top{display:flex;gap:8px;align-items:center;}
+  .case .top b{flex:1;min-width:0;}
+  .case .sub{font-size:13px;color:#555;margin-top:4px;white-space:pre-line;}
+  .monthbar{display:flex;align-items:center;gap:8px;}
+  .monthbar b{flex:1;text-align:center;font-size:17px;}
+  .monthbar button{padding:8px 14px;}
   .warnbox{background:var(--warn);color:#7a5c00;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:10px;}
   .muted{color:var(--mute);font-size:13px;}
   .hidden{display:none !important;}
@@ -106,7 +128,8 @@
     <div class="tabs">
       <button id="tabRec" class="on">記録する</button>
       <button id="tabSlots">空き枠</button>
-      <button id="tabList">最近の記録</button>
+      <button id="tabCases">案件</button>
+      <button id="tabMe">わたし</button>
     </div>
 
     <div id="pRec">
@@ -156,13 +179,34 @@
     </div>
 
     <div id="pSlots" class="card hidden">
-      <div class="muted">週間訪問スケジュールから、新しい利用者の訪問（40分）を始められる時刻を出します。移動の時間は差し引き済みです。この画面はケアマネに見せても大丈夫です。</div>
+      <div class="muted">週間訪問スケジュールから、新しい利用者の訪問を始められる時刻を出します。移動の時間は差し引き済みです。この画面はケアマネに見せても大丈夫です。</div>
       <label class="lb">事業所（選ぶと担当リハの枠が先頭に）</label>
       <select id="sOffice"></select>
       <div id="sList"></div>
     </div>
 
-    <div id="pList" class="card hidden"></div>
+    <div id="pCases" class="card hidden">
+      <div class="seg mode">
+        <button id="cOpen" class="on">進行中</button>
+        <button id="cAll">最近90日すべて</button>
+      </div>
+      <div class="chips" style="margin-top:10px"><label><input type="checkbox" id="cMine"><span>自分が窓口の分だけ</span></label></div>
+      <div id="cList"></div>
+    </div>
+
+    <div id="pMe" class="hidden">
+      <div class="card">
+        <div class="monthbar"><button id="mPrev" class="sub">◀</button><b id="mLabel"></b><button id="mNext" class="sub">▶</button></div>
+        <div id="mKpi" class="kpi"></div>
+        <label class="lb">訪問カレンダー（営業した件数）</label>
+        <div id="mCal" class="cal"></div>
+      </div>
+      <div class="card">
+        <div class="muted" id="mStaleHead"></div>
+        <div id="mStale"></div>
+      </div>
+      <div id="pList" class="card"></div>
+    </div>
   </div>
 </div>
 
@@ -181,7 +225,8 @@
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
   var OTHER = 'その他:';
   // rid：保存が成功するか入力を変えるまで同じ requestId を使う（返事が届かず押し直しても二重に書かれない）
-  var S = { ticket: '', d: null, one: { means: '訪問', result: '', rid: '' }, batch: { means: '訪問', checked: {}, rid: '' } };
+  // seq：画面ごとの依頼番号。月や絞り込みを素早く切り替えたとき、遅れて届いた古い返事で上書きしないため。
+  var S = { ticket: '', d: null, caseScope: 'open', meYm: '', seq: { slots: 0, cases: 0, me: 0 }, one: { means: '訪問', result: '', rid: '' }, batch: { means: '訪問', checked: {}, rid: '' } };
 
   function $(id) { return document.getElementById(id); }
   // 事業所名・ケアマネ名・利用者名はシート由来なので、必ず textContent で入れる（innerHTML に混ぜない）
@@ -605,8 +650,9 @@
   async function renderSlots() {
     var box = $('sList'); clear(box);
     box.appendChild(el('div', { cls: 'muted', style: 'margin-top:12px', text: '読み込み中…' }));
-    var d;
-    try { d = await authed('slots', { officeId: $('sOffice').value }); } catch (e) { clear(box); msg(e.message); return; }
+    var d, my = ++S.seq.slots;
+    try { d = await authed('slots', { officeId: $('sOffice').value }); } catch (e) { if (my === S.seq.slots) { clear(box); msg(e.message); } return; }
+    if (my !== S.seq.slots) return;
     clear(box);
     if (!d.ranges.length) box.appendChild(el('div', { cls: 'muted', style: 'margin-top:12px', text: '今の予定では空き枠がありません' }));
     ['月', '火', '水', '木', '金'].forEach(function (wd) {
@@ -625,6 +671,123 @@
     }
   }
   $('sOffice').addEventListener('change', renderSlots);
+
+  // ── 案件 ──
+  async function renderCases() {
+    var box = $('cList'); clear(box);
+    box.appendChild(el('div', { cls: 'muted', style: 'margin-top:12px', text: '読み込み中…' }));
+    var list, my = ++S.seq.cases;
+    try { list = await authed('cases', { scope: S.caseScope, mine: $('cMine').checked }); } catch (e) { if (my === S.seq.cases) { clear(box); msg(e.message); } return; }
+    if (my !== S.seq.cases) return;
+    clear(box);
+    if (!list.length) { box.appendChild(el('div', { cls: 'muted', style: 'margin-top:12px', text: '案件はありません' })); return; }
+    list.forEach(function (c) {
+      box.appendChild(el('div', { cls: 'case', onclick: function () { editCase(c); } }, [
+        el('div', { cls: 'top' }, [el('b', { text: c.client + (c.disease ? '（' + c.disease + '）' : '') }),
+          el('span', { cls: 'tag' + (c.progress === '検討中' ? ' inq' : ''), text: c.progress })]),
+        el('div', { cls: 'sub', text: dateJa(c.date) + '　' + c.officeName + (c.cmName ? '・' + c.cmName : '') + '　窓口 ' + c.owner
+          + (c.heldSlot ? '\n仮押さえ ' + c.heldSlot : '') })]));
+    });
+  }
+  function editCase(c) {
+    var outer = $('sheet'); clear(outer);
+    var sh = el('div', {});
+    outer.appendChild(sh);
+    sh.appendChild(el('h2', { text: c.client + (c.disease ? '（' + c.disease + '）' : '') }));
+    sh.appendChild(el('div', { cls: 'muted', text: c.officeName + (c.cmName ? '・' + c.cmName : '') + '　窓口 ' + c.owner + '　' + dateJa(c.date) }));
+    if (c.trouble) sh.appendChild(el('div', { cls: 'digest', text: c.trouble }));
+    var pg = el('select', {});
+    S.d.progress.forEach(function (v) { pg.appendChild(el('option', { value: v, text: v })); });
+    pg.value = c.progress;
+    var dates = {};
+    function dateField(label, key) {
+      var i = el('input', { type: 'date', value: c[key] || '' });
+      dates[key] = i;
+      return el('div', {}, [el('label', { cls: 'lb', text: label }), i]);
+    }
+    var reason = el('select', {});
+    reason.appendChild(el('option', { value: '', text: '選んでください' }));
+    S.d.endReasons.forEach(function (r) { reason.appendChild(el('option', { value: r, text: r })); });
+    reason.value = S.d.endReasons.indexOf(c.endReason) >= 0 ? c.endReason : '';
+    var reasonBox = el('div', {}, [el('label', { cls: 'lb', text: '終了理由（案件終了のとき）' }), reason]);
+    var note = el('textarea', { placeholder: '備考（次にすること など）' });
+    note.value = c.note || '';
+    function sync() { reasonBox.classList.toggle('hidden', pg.value !== '案件終了'); }
+    pg.addEventListener('change', sync);
+    sh.appendChild(el('label', { cls: 'lb', text: '進捗' })); sh.appendChild(pg);
+    sh.appendChild(dateField('体験日', 'trialDate'));
+    sh.appendChild(dateField('契約日（契約済・開始のとき必須）', 'contractDate'));
+    sh.appendChild(dateField('初回日（開始のとき必須）', 'firstDate'));
+    sh.appendChild(reasonBox);
+    sh.appendChild(el('label', { cls: 'lb', text: '備考' })); sh.appendChild(note);
+    sync();
+    var rid = newRequestId();
+    sh.addEventListener('input', function () { rid = newRequestId(); });
+    sh.addEventListener('change', function () { rid = newRequestId(); });
+    var save = el('button', { text: '保存する', onclick: async function () {
+      save.disabled = true; msg('保存しています…', 'wait');
+      try {
+        await authed('updateCase', { requestId: rid, id: c.id, baseUpdatedAt: c.updatedAt, update: {
+          progress: pg.value, trialDate: dates.trialDate.value, contractDate: dates.contractDate.value,
+          firstDate: dates.firstDate.value, endReason: reason.value, note: note.value } });
+        msg('保存しました', 'ok');
+        $('ovl').classList.add('hidden');
+        renderCases();
+      } catch (e) {
+        msg(e.message); save.disabled = false;
+        if (/他の人が先に/.test(e.message)) { $('ovl').classList.add('hidden'); renderCases(); }
+      }
+    } });
+    sh.appendChild(el('div', { cls: 'askBtns' }, [el('button', { cls: 'sub', text: '閉じる', onclick: function () { $('ovl').classList.add('hidden'); } }), save]));
+    $('ovl').classList.remove('hidden');
+  }
+  $('cOpen').addEventListener('click', function () { S.caseScope = 'open'; this.classList.add('on'); $('cAll').classList.remove('on'); renderCases(); });
+  $('cAll').addEventListener('click', function () { S.caseScope = 'all'; this.classList.add('on'); $('cOpen').classList.remove('on'); renderCases(); });
+  $('cMine').addEventListener('change', renderCases);
+
+  // ── わたし ──
+  function shiftYm(ym, n) { var t = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return t.toISOString().slice(0, 7); }
+  async function renderMe() {
+    if (!S.meYm) S.meYm = S.d.today.slice(0, 7);
+    $('mLabel').textContent = +S.meYm.slice(0, 4) + '年' + +S.meYm.slice(5, 7) + '月';
+    $('mNext').disabled = S.meYm >= S.d.today.slice(0, 7);
+    var m, my = ++S.seq.me;
+    try { m = await authed('me', { ym: S.meYm }); } catch (e) { if (my === S.seq.me) msg(e.message); return; }
+    if (my !== S.seq.me) return;
+    var kp = $('mKpi'); clear(kp);
+    [['visits', '営業'], ['contacts', '接触'], ['inquiries', '問い合わせ'], ['contracts', '契約']].forEach(function (k) {
+      var a = m.actual[k[0]], t = m.target[k[0]];
+      var note = t ? (a >= t ? '目標 ' + t + '・達成' : '目標 ' + t + '・あと ' + (t - a)) : '目標なし';
+      kp.appendChild(el('div', {}, [el('small', { text: k[1] }), el('b', { text: String(a) }),
+        el('small', { cls: t ? (a >= t ? 'ok' : 'short') : '', text: note })]));
+    });
+    var cal = $('mCal'); clear(cal);
+    WD.forEach(function (w) { cal.appendChild(el('div', { cls: 'h', text: w })); });
+    var first = new Date(m.dates[0] + 'T00:00:00Z').getUTCDay();
+    for (var i = 0; i < first; i++) cal.appendChild(el('div', { cls: 'd off' }));
+    m.dates.forEach(function (d, i) {
+      var n = m.counts[i];
+      cal.appendChild(el('div', { cls: 'd' }, [el('span', { text: String(+d.slice(8, 10)) }), n ? el('b', { text: String(n) }) : null]));
+    });
+    var over = m.stale.filter(function (o) { return o.stale; }).length;
+    $('mStaleHead').textContent = '担当の事業所（最後に訪問した日が古い順）。' + m.staleDays + '日以上は赤。' + (over ? over + '件がご無沙汰です。' : '');
+    var sl = $('mStale'); clear(sl);
+    if (!m.stale.length) sl.appendChild(el('div', { cls: 'muted', style: 'margin-top:8px', text: '担当の事業所がありません（事業所タブの担当リハ）' }));
+    m.stale.forEach(function (o) {
+      sl.appendChild(el('div', { cls: 'stale' + (o.stale ? ' over' : ''), onclick: function () { recordAt(o.officeId); } }, [
+        el('span', { cls: 'nm', text: o.name }), el('span', { cls: 'tag', text: o.area || '' }),
+        el('span', { cls: 'ds', text: o.lastDate ? dateJa(o.lastDate) + '（' + o.daysSince + '日）' : 'まだ訪問なし' })]));
+    });
+  }
+  // ご無沙汰の事業所から、その事業所を選んだ状態で記録画面へ
+  function recordAt(officeId) {
+    tab('rec'); mode('one');
+    $('oArea').value = ''; fillOffices();
+    $('oOffice').value = officeId; onOffice();
+    window.scrollTo(0, 0);
+  }
+  $('mPrev').addEventListener('click', function () { S.meYm = shiftYm(S.meYm, -1); renderMe(); });
+  $('mNext').addEventListener('click', function () { S.meYm = shiftYm(S.meYm, 1); renderMe(); });
 
   // ── 最近の記録 ──
   async function renderList() {
@@ -657,15 +820,17 @@
 
   // ── 切り替え ──
   function tab(on) {
-    [['rec', 'tabRec', 'pRec'], ['slots', 'tabSlots', 'pSlots'], ['list', 'tabList', 'pList']].forEach(function (t) {
+    [['rec', 'tabRec', 'pRec'], ['slots', 'tabSlots', 'pSlots'], ['cases', 'tabCases', 'pCases'], ['me', 'tabMe', 'pMe']].forEach(function (t) {
       $(t[1]).classList.toggle('on', on === t[0]); $(t[2]).classList.toggle('hidden', on !== t[0]);
     });
-    if (on === 'list') renderList();
     if (on === 'slots') { slotsOfficeOptions(); renderSlots(); }
+    if (on === 'cases') renderCases();
+    if (on === 'me') { renderMe(); renderList(); }
   }
   $('tabRec').addEventListener('click', function () { tab('rec'); });
   $('tabSlots').addEventListener('click', function () { tab('slots'); });
-  $('tabList').addEventListener('click', function () { tab('list'); });
+  $('tabCases').addEventListener('click', function () { tab('cases'); });
+  $('tabMe').addEventListener('click', function () { tab('me'); });
   function mode(m) {
     $('modeOne').classList.toggle('on', m === 'one'); $('modeBatch').classList.toggle('on', m === 'batch');
     $('fOne').classList.toggle('hidden', m !== 'one'); $('fBatch').classList.toggle('hidden', m !== 'batch');
