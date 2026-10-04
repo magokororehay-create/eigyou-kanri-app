@@ -55,6 +55,13 @@
   .rec .acts button{padding:6px 12px;font-size:13px;}
   .rec .acts button.del{background:#eef0f3;color:#b00;}
   .hint{font-size:12px;color:var(--mute);margin-top:4px;}
+  .day{margin-top:14px;}
+  .day h3{font-size:15px;margin:0 0 6px;padding-bottom:4px;border-bottom:2px solid var(--pri-weak);}
+  .slot{display:flex;gap:10px;align-items:baseline;padding:8px 2px;border-bottom:1px solid var(--line);font-size:16px;}
+  .slot .st{width:4.5em;flex:none;font-weight:700;}
+  .slot.pref .st{color:var(--pri);}
+  .slot .tm{flex:1;}
+  .warnbox{background:var(--warn);color:#7a5c00;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:10px;}
   .muted{color:var(--mute);font-size:13px;}
   .hidden{display:none !important;}
   #msg{position:fixed;top:8px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:448px;z-index:20;}
@@ -98,6 +105,7 @@
     <div class="who"><span id="me"></span><a href="#" id="logout">ログアウト</a></div>
     <div class="tabs">
       <button id="tabRec" class="on">記録する</button>
+      <button id="tabSlots">空き枠</button>
       <button id="tabList">最近の記録</button>
     </div>
 
@@ -145,6 +153,13 @@
         <div id="bList"></div>
         <button id="bSave" class="full">まとめて保存する</button>
       </div>
+    </div>
+
+    <div id="pSlots" class="card hidden">
+      <div class="muted">週間訪問スケジュールから、新しい利用者の訪問（40分）を始められる時刻を出します。移動の時間は差し引き済みです。この画面はケアマネに見せても大丈夫です。</div>
+      <label class="lb">事業所（選ぶと担当リハの枠が先頭に）</label>
+      <select id="sOffice"></select>
+      <div id="sList"></div>
     </div>
 
     <div id="pList" class="card hidden"></div>
@@ -385,10 +400,26 @@
     var ne = el('select', { id: box.id + 'New' });
     S.d.newOrExisting.forEach(function (v) { ne.appendChild(el('option', { value: v, text: v || '新規／既存' })); });
     box.appendChild(el('div', { cls: 'row', style: 'margin-top:8px' }, [lv, ne]));
+    var held = el('select', { id: box.id + 'Held', style: 'margin-top:8px' });
+    held.appendChild(el('option', { value: '', text: '仮押さえ枠（空き枠から選ぶ・任意）' }));
+    box.appendChild(held);
+  }
+  // 仮押さえ枠の選択肢を空き枠で埋める（事業所の担当リハの枠が先頭）。読めなくても入力は続けられる。
+  async function fillHeld(box, officeId) {
+    var sel = $(box.id + 'Held');
+    if (!sel) return;
+    try {
+      var d = await authed('slots', { officeId: officeId || '' });
+      var keep = sel.value;
+      while (sel.options.length > 1) sel.remove(1);
+      d.ranges.forEach(function (r) { sel.appendChild(el('option', { value: r.label, text: r.label })); });
+      sel.value = keep;
+    } catch (e) { /* 空き枠が読めなくても記録はできる */ }
   }
   function readInquiry(box) {
     return { client: $(box.id + 'Client').value, disease: $(box.id + 'Disease').value, trouble: $(box.id + 'Trouble').value,
-             careLevel: $(box.id + 'Level').value, newOrExisting: $(box.id + 'New').value };
+             careLevel: $(box.id + 'Level').value, newOrExisting: $(box.id + 'New').value,
+             heldSlot: $(box.id + 'Held') ? $(box.id + 'Held').value : '' };
   }
 
   // ── 1件ずつ ──
@@ -408,6 +439,7 @@
     segment($('oResult'), S.d.results, '', function (v) {
       S.one.result = v; S.one.rid = '';
       $('oInq').classList.toggle('hidden', v !== '問い合わせ');
+      if (v === '問い合わせ') fillHeld($('oInq'), $('oOffice').value);
     });
     S.one.result = '';
     S.one.rid = '';
@@ -543,6 +575,7 @@
       var box = el('div', { id: 'sInq' });
       sh.appendChild(box);
       inquiryFields(box);
+      fillHeld(box, office ? office.id : '');
       var rid = newRequestId();
       box.addEventListener('input', function () { rid = newRequestId(); });
       box.addEventListener('change', function () { rid = newRequestId(); });
@@ -560,6 +593,38 @@
       function close() { $('ovl').classList.add('hidden'); resolve(); }
     });
   }
+
+  // ── 空き枠 ──
+  function slotsOfficeOptions() {
+    var sel = $('sOffice'), keep = sel.value;
+    clear(sel);
+    sel.appendChild(el('option', { value: '', text: '選ばない（担当の順に並べない）' }));
+    sortedOffices('').forEach(function (o) { sel.appendChild(el('option', { value: o.id, text: o.name + (o.staff ? '（' + o.staff + '）' : '') })); });
+    sel.value = keep;
+  }
+  async function renderSlots() {
+    var box = $('sList'); clear(box);
+    box.appendChild(el('div', { cls: 'muted', style: 'margin-top:12px', text: '読み込み中…' }));
+    var d;
+    try { d = await authed('slots', { officeId: $('sOffice').value }); } catch (e) { clear(box); msg(e.message); return; }
+    clear(box);
+    if (!d.ranges.length) box.appendChild(el('div', { cls: 'muted', style: 'margin-top:12px', text: '今の予定では空き枠がありません' }));
+    ['月', '火', '水', '木', '金'].forEach(function (wd) {
+      var list = d.ranges.filter(function (r) { return r.weekday === wd; });
+      if (!list.length) return;
+      var day = el('div', { cls: 'day' }, [el('h3', { text: wd + '曜日' })]);
+      list.forEach(function (r) {
+        day.appendChild(el('div', { cls: 'slot' + (r.staff === d.preferred ? ' pref' : '') }, [
+          el('span', { cls: 'st', text: r.staff }),
+          el('span', { cls: 'tm', text: r.from === r.to ? r.from + ' 開始' : r.from + '〜' + r.to + ' のどこかで開始' })]));
+      });
+      box.appendChild(day);
+    });
+    if (d.unknownStaff.length) {
+      box.appendChild(el('div', { cls: 'warnbox', text: 'スケジュールに名簿に無い担当名があり、その列は使っていません：' + d.unknownStaff.join('、') + '（管理者へ）' }));
+    }
+  }
+  $('sOffice').addEventListener('change', renderSlots);
 
   // ── 最近の記録 ──
   async function renderList() {
@@ -592,11 +657,14 @@
 
   // ── 切り替え ──
   function tab(on) {
-    $('tabRec').classList.toggle('on', on === 'rec'); $('tabList').classList.toggle('on', on === 'list');
-    $('pRec').classList.toggle('hidden', on !== 'rec'); $('pList').classList.toggle('hidden', on !== 'list');
+    [['rec', 'tabRec', 'pRec'], ['slots', 'tabSlots', 'pSlots'], ['list', 'tabList', 'pList']].forEach(function (t) {
+      $(t[1]).classList.toggle('on', on === t[0]); $(t[2]).classList.toggle('hidden', on !== t[0]);
+    });
     if (on === 'list') renderList();
+    if (on === 'slots') { slotsOfficeOptions(); renderSlots(); }
   }
   $('tabRec').addEventListener('click', function () { tab('rec'); });
+  $('tabSlots').addEventListener('click', function () { tab('slots'); });
   $('tabList').addEventListener('click', function () { tab('list'); });
   function mode(m) {
     $('modeOne').classList.toggle('on', m === 'one'); $('modeBatch').classList.toggle('on', m === 'batch');
