@@ -83,6 +83,34 @@
   .monthbar{display:flex;align-items:center;gap:8px;}
   .monthbar b{flex:1;text-align:center;font-size:17px;}
   .monthbar button{padding:8px 14px;}
+  .wide{max-width:none;}
+  table.tb{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px;font-variant-numeric:tabular-nums;}
+  table.tb th,table.tb td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  table.tb th:first-child,table.tb td:first-child{text-align:left;}
+  table.tb th{color:var(--mute);font-weight:600;font-size:12px;}
+  table.tb td small{color:var(--mute);}
+  table.tb tr.total td{font-weight:700;border-top:2px solid #ddd;}
+  .bars .br{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:14px;}
+  .bars .br .lbl{width:7em;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .bars .br .trk{flex:1;height:14px;background:#f1f3f4;border-radius:4px;overflow:hidden;}
+  .bars .br .fill{height:100%;background:var(--pri);border-radius:0 4px 4px 0;}
+  .bars .br .val{width:6.5em;flex:none;text-align:right;font-variant-numeric:tabular-nums;color:#333;}
+  .heat{overflow-x:auto;margin-top:8px;}
+  .heat table{border-collapse:separate;border-spacing:2px;font-size:11px;}
+  .heat td,.heat th{width:22px;height:22px;text-align:center;border-radius:4px;padding:0;}
+  .heat th{color:var(--mute);font-weight:400;}
+  .heat td.nm{width:auto;text-align:left;padding-right:4px;color:#333;font-size:12px;white-space:nowrap;}
+  .heat .h0{background:#f1f3f4;color:transparent;}
+  .heat .h1{background:#cde9ea;}
+  .heat .h2{background:#8fcfd1;}
+  .heat .h3{background:#3fa3a6;color:#fff;}
+  .heat .h4{background:#0f7c80;color:#fff;}
+  .off{padding:10px 0;border-bottom:1px solid var(--line);}
+  .off .top{display:flex;gap:8px;align-items:center;}
+  .off .top b{flex:1;min-width:0;}
+  .off .top select{width:auto;padding:6px 8px;font-size:15px;}
+  .off.inact b{color:var(--mute);text-decoration:line-through;}
+  .sec{font-size:15px;font-weight:700;margin:4px 0 2px;}
   .warnbox{background:var(--warn);color:#7a5c00;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:10px;}
   .muted{color:var(--mute);font-size:13px;}
   .hidden{display:none !important;}
@@ -130,6 +158,7 @@
       <button id="tabSlots">空き枠</button>
       <button id="tabCases">案件</button>
       <button id="tabMe">わたし</button>
+      <button id="tabAll" class="hidden">全体</button>
     </div>
 
     <div id="pRec">
@@ -194,6 +223,27 @@
       <div id="cList"></div>
     </div>
 
+    <div id="pAll" class="hidden">
+      <div class="card">
+        <div class="monthbar"><button id="aPrev" class="sub">◀</button><b id="aLabel"></b><button id="aNext" class="sub">▶</button></div>
+        <div class="sec" style="margin-top:12px">月次（実績 / 目標）</div>
+        <div id="aKpi"></div>
+      </div>
+      <div class="card"><div class="sec">営業件数の推移（全体・直近6か月）</div><div id="aSeries" class="bars"></div></div>
+      <div class="card"><div class="sec">訪問ヒートマップ（日 × スタッフ）</div><div id="aHeat" class="heat"></div></div>
+      <div class="card"><div class="sec">地域別（その月）</div><div id="aAreas" class="bars"></div></div>
+      <div class="card"><div class="sec">反応率（問い合わせ ÷ 営業・直近3か月）</div>
+        <div class="muted">事業所別（営業の多い順）</div><div id="aRatesO" class="bars"></div>
+        <div class="muted" style="margin-top:10px">持って行った物別</div><div id="aRatesI" class="bars"></div></div>
+      <div class="card"><div class="sec">案件の流れ（直近6か月の問い合わせ）</div><div id="aFunnel" class="bars"></div><div id="aReasons"></div></div>
+      <div class="card"><div class="sec">目標の入力（この月）</div><div id="aTargets"></div><button id="aSaveT" class="full">目標を保存する</button></div>
+      <div class="card"><div class="sec">「その他」で記録された相手</div><div class="muted">ケアマネなら名簿に足すと、次から選べます。</div><div id="aOthers"></div></div>
+      <div class="card"><div class="sec">事業所の名簿</div>
+        <div class="muted">担当リハを選ぶと保存します。押すとケアマネの追加・退職ができます。</div>
+        <div class="chips" style="margin-top:8px"><label><input type="checkbox" id="aOnlyNone"><span>担当なしだけ</span></label></div>
+        <div id="aOffices"></div></div>
+    </div>
+
     <div id="pMe" class="hidden">
       <div class="card">
         <div class="monthbar"><button id="mPrev" class="sub">◀</button><b id="mLabel"></b><button id="mNext" class="sub">▶</button></div>
@@ -226,7 +276,7 @@
   var OTHER = 'その他:';
   // rid：保存が成功するか入力を変えるまで同じ requestId を使う（返事が届かず押し直しても二重に書かれない）
   // seq：画面ごとの依頼番号。月や絞り込みを素早く切り替えたとき、遅れて届いた古い返事で上書きしないため。
-  var S = { ticket: '', d: null, caseScope: 'open', meYm: '', seq: { slots: 0, cases: 0, me: 0 }, one: { means: '訪問', result: '', rid: '' }, batch: { means: '訪問', checked: {}, rid: '' } };
+  var S = { ticket: '', d: null, caseScope: 'open', meYm: '', seq: { slots: 0, cases: 0, me: 0, all: 0, list: 0 }, allYm: '', all: null, one: { means: '訪問', result: '', rid: '' }, batch: { means: '訪問', checked: {}, rid: '' } };
 
   function $(id) { return document.getElementById(id); }
   // 事業所名・ケアマネ名・利用者名はシート由来なので、必ず textContent で入れる（innerHTML に混ぜない）
@@ -376,12 +426,23 @@
   });
 
   // ── 起動 ──
+  // ログアウト・期限切れの後に別の人が入っても、前の人の画面（全体の数字・案件の利用者名など）を残さない
+  function resetViews() {
+    ['aKpi', 'aSeries', 'aHeat', 'aAreas', 'aRatesO', 'aRatesI', 'aFunnel', 'aReasons', 'aTargets', 'aOthers', 'aOffices',
+     'cList', 'mKpi', 'mCal', 'mStale', 'pList', 'sList', 'sheet'].forEach(function (id) { clear($(id)); });
+    $('ovl').classList.add('hidden');
+    S.all = null; S.allYm = ''; S.meYm = '';
+    Object.keys(S.seq).forEach(function (k) { S.seq[k]++; });   // 前の人の読み込み中の返事が後から描き込まないように
+    tab('rec'); mode('one');
+  }
   async function start() {
+    resetViews();
     try {
       msg('読み込み中…', 'wait');
       S.d = await authed('init');
       msg('');
       $('me').textContent = S.d.me + ' さん' + (S.d.admin ? '（管理者）' : '');
+      $('tabAll').classList.toggle('hidden', !S.d.admin);
       buildForms();
       show('vMain');
     } catch (e) { msg(e.message); show('vLogin'); }
@@ -789,12 +850,175 @@
   $('mPrev').addEventListener('click', function () { S.meYm = shiftYm(S.meYm, -1); renderMe(); });
   $('mNext').addEventListener('click', function () { S.meYm = shiftYm(S.meYm, 1); renderMe(); });
 
+  // ── 全体（管理者）──
+  // 図はすべて一色（ティール）の濃淡か横棒。数字は必ず文字で添え、マウスを載せると title で件数が出る。
+  function bars(box, rows) {
+    clear(box);
+    var max = Math.max.apply(null, [1].concat(rows.map(function (r) { return r.n; })));
+    if (!rows.length) { box.appendChild(el('div', { cls: 'muted', text: 'まだありません' })); return; }
+    rows.forEach(function (r) {
+      var fill = el('div', { cls: 'fill' }); fill.style.width = (r.n / max * 100) + '%';
+      box.appendChild(el('div', { cls: 'br', title: r.title || (r.label + '：' + r.val) }, [
+        el('span', { cls: 'lbl', text: r.label }), el('div', { cls: 'trk' }, [fill]), el('span', { cls: 'val', text: r.val })]));
+    });
+  }
+  function pct(x) { return Math.round(x * 100) + '%'; }
+  async function renderAll() {
+    if (!S.allYm) S.allYm = S.d.today.slice(0, 7);
+    $('aLabel').textContent = +S.allYm.slice(0, 4) + '年' + +S.allYm.slice(5, 7) + '月';
+    $('aNext').disabled = S.allYm >= S.d.today.slice(0, 7);
+    var d, my = ++S.seq.all;
+    $('aSaveT').disabled = true; clear($('aTargets'));   // 読み込み中は前の月の目標を出さない・保存させない
+    try { d = await authed('overview', { ym: S.allYm }); } catch (e) { if (my === S.seq.all) msg(e.message); return; }
+    if (my !== S.seq.all) return;
+    S.all = d;
+    $('aSaveT').disabled = false;
+    var K = [['visits', '営業'], ['contacts', '接触'], ['inquiries', '問い合わせ'], ['contracts', '契約']];
+    var t = el('table', { cls: 'tb' }), hr = el('tr', {}, [el('th', { text: '' })]);
+    K.forEach(function (k) { hr.appendChild(el('th', { text: k[1] })); });
+    t.appendChild(hr);
+    d.kpi.rows.concat([d.kpi.total]).forEach(function (r, i, arr) {
+      var tr = el('tr', { cls: i === arr.length - 1 ? 'total' : '' }, [el('td', { text: r.staff })]);
+      K.forEach(function (k) {
+        tr.appendChild(el('td', {}, [el('span', { text: String(r.actual[k[0]]) }), el('small', { text: ' / ' + (r.target[k[0]] || '-') })]));
+      });
+      t.appendChild(tr);
+    });
+    clear($('aKpi')); $('aKpi').appendChild(t);
+    bars($('aSeries'), d.series.map(function (x) {
+      return { label: +x.ym.slice(5, 7) + '月', n: x.total.visits, val: x.total.visits + '件',
+               title: x.ym + '：営業' + x.total.visits + '・問い合わせ' + x.total.inquiries + '・契約' + x.total.contracts };
+    }));
+    var max = Math.max.apply(null, [1].concat(d.heat.rows.map(function (r) { return Math.max.apply(null, r.counts); })));
+    var ht = el('table', {}), head = el('tr', {}, [el('th', { text: '' })]);
+    d.heat.dates.forEach(function (x) { head.appendChild(el('th', { text: String(+x.slice(8, 10)) })); });
+    ht.appendChild(head);
+    d.heat.rows.forEach(function (r) {
+      var tr = el('tr', {}, [el('td', { cls: 'nm', text: r.staff })]);
+      r.counts.forEach(function (n, i) {
+        var lv = n === 0 ? 0 : Math.min(4, Math.ceil(n / max * 4));
+        tr.appendChild(el('td', { cls: 'h' + lv, title: r.staff + ' ' + dateJa(d.heat.dates[i]) + '：' + n + '件', text: n ? String(n) : '' }));
+      });
+      ht.appendChild(tr);
+    });
+    clear($('aHeat')); $('aHeat').appendChild(ht);
+    bars($('aAreas'), d.areas.map(function (a) { return { label: a.area, n: a.visits, val: a.visits + '件・問' + a.inquiries }; }));
+    bars($('aRatesO'), d.ratesOffice.map(function (x) { return { label: x.name, n: x.rate, val: pct(x.rate) + '（' + x.inquiries + '/' + x.visits + '）' }; }));
+    bars($('aRatesI'), d.ratesItem.map(function (x) { return { label: x.key, n: x.rate, val: pct(x.rate) + '（' + x.inquiries + '/' + x.visits + '）' }; }));
+    var f = d.funnel;
+    bars($('aFunnel'), [{ label: '問い合わせ', n: f.inquiries, val: f.inquiries + '件' }, { label: '体験まで', n: f.trial, val: f.trial + '件' },
+      { label: '契約まで', n: f.contract, val: f.contract + '件' }]);
+    var rs = $('aReasons'); clear(rs);
+    if (f.endReasons.length) {
+      rs.appendChild(el('div', { cls: 'muted', style: 'margin-top:8px', text: '終了理由' }));
+      var rb = el('div', { cls: 'bars' }); rs.appendChild(rb);
+      bars(rb, f.endReasons.map(function (x) { return { label: x.reason, n: x.count, val: x.count + '件' }; }));
+    }
+    renderTargets(); renderOthers(); renderOffices();
+  }
+  function renderTargets() {
+    var d = S.all, box = $('aTargets'); clear(box);
+    var K = [['visits', '営業'], ['contacts', '接触'], ['inquiries', '問い合わせ'], ['contracts', '契約']];
+    var t = el('table', { cls: 'tb' }), hr = el('tr', {}, [el('th', { text: '' })]);
+    K.forEach(function (k) { hr.appendChild(el('th', { text: k[1] })); });
+    t.appendChild(hr);
+    d.kpi.rows.filter(function (r) { return d.staff.indexOf(r.staff) >= 0; }).forEach(function (r) {
+      var tr = el('tr', { 'data-staff': r.staff }, [el('td', { text: r.staff })]);
+      K.forEach(function (k) {
+        tr.appendChild(el('td', {}, [el('input', { type: 'number', min: '0', max: '999', inputmode: 'numeric', 'data-k': k[0],
+          value: String(r.target[k[0]] || 0), style: 'width:56px;padding:6px;font-size:15px;text-align:right' })]));
+      });
+      t.appendChild(tr);
+    });
+    box.appendChild(t);
+  }
+  $('aSaveT').addEventListener('click', async function () {
+    var btn = this;
+    if (!S.all) return;
+    var bad = Array.prototype.some.call($('aTargets').querySelectorAll('input'), function (i) { return i.validity && i.validity.badInput; });
+    if (bad) { msg('目標は数字で入れてください'); return; }
+    var rows = Array.prototype.map.call($('aTargets').querySelectorAll('tr[data-staff]'), function (tr) {
+      var o = { staff: tr.getAttribute('data-staff') };
+      tr.querySelectorAll('input').forEach(function (i) { o[i.getAttribute('data-k')] = i.value; });
+      return o;
+    });
+    btn.disabled = true; msg('保存しています…', 'wait');
+    try { await authed('saveTargets', { ym: S.all.ym, rows: rows }); msg(S.all.ym.slice(5) + '月の目標を保存しました', 'ok'); renderAll(); }
+    catch (e) { msg(e.message); } finally { btn.disabled = false; }
+  });
+  function renderOthers() {
+    var box = $('aOthers'); clear(box);
+    if (!S.all.others.length) { box.appendChild(el('div', { cls: 'muted', style: 'margin-top:8px', text: 'ありません' })); return; }
+    S.all.others.forEach(function (o) {
+      box.appendChild(el('div', { cls: 'rec' }, [el('div', { cls: 'top' }, [el('b', { text: o.name }),
+        el('span', { cls: 'muted', text: o.officeName + '・' + o.count + '回' }),
+        el('button', { cls: 'sub', text: 'ケアマネに足す', style: 'padding:6px 10px;font-size:13px', onclick: async function () {
+          try { var r = await authed('addCm', { officeId: o.officeId, name: o.name }); msg(r.existed ? '既に名簿にいます' : '名簿に足しました', 'ok'); refreshMaster(); renderAll(); } catch (e) { msg(e.message); }
+        } })])]));
+    });
+  }
+  function renderOffices() {
+    var box = $('aOffices'); clear(box);
+    var only = $('aOnlyNone').checked;
+    S.all.offices.filter(function (o) { return !only || !o.staff; }).forEach(function (o) {
+      var sel = el('select', {});
+      sel.appendChild(el('option', { value: '', text: '担当なし' }));
+      S.all.staff.forEach(function (n) { sel.appendChild(el('option', { value: n, text: n })); });
+      sel.value = o.staff || '';
+      sel.addEventListener('click', function (e) { e.stopPropagation(); });
+      sel.addEventListener('change', async function () {
+        try { await authed('saveOffice', { id: o.id, staff: sel.value }); o.staff = sel.value; msg(o.name + '：担当を保存しました', 'ok'); refreshMaster(); }
+        catch (e) { msg(e.message); sel.value = o.staff || ''; }
+      });
+      box.appendChild(el('div', { cls: 'off' + (o.active ? '' : ' inact'), onclick: function () { editOffice(o); } }, [
+        el('div', { cls: 'top' }, [el('b', { text: o.name }), el('span', { cls: 'tag', text: (o.area || '') + ' ' + o.kind }), sel]),
+        el('div', { cls: 'muted', text: 'ケアマネ ' + o.cms.filter(function (c) { return c.active; }).length + '人' + (o.active ? '' : '・無効') })]));
+    });
+  }
+  $('aOnlyNone').addEventListener('change', renderOffices);
+  function editOffice(o) {
+    var outer = $('sheet'); clear(outer);
+    var sh = el('div', {}); outer.appendChild(sh);
+    sh.appendChild(el('h2', { text: o.name }));
+    o.cms.forEach(function (c) {
+      sh.appendChild(el('div', { cls: 'rec' }, [el('div', { cls: 'top' }, [el('b', { text: c.name + (c.active ? '' : '（退職）') }),
+        el('button', { cls: 'sub', text: c.active ? '退職にする' : '在籍に戻す', style: 'padding:6px 10px;font-size:13px', onclick: async function () {
+          try { await authed('setCmActive', { id: c.id, active: !c.active }); c.active = !c.active; msg('保存しました', 'ok'); editOffice(o); refreshMaster(); }
+          catch (e) { msg(e.message); }
+        } })])]));
+    });
+    var nm = el('input', { placeholder: '新しいケアマネの名前' });
+    sh.appendChild(el('label', { cls: 'lb', text: 'ケアマネを足す' })); sh.appendChild(nm);
+    var act = el('button', { cls: 'sub', text: o.active ? 'この事業所を無効にする（記録画面に出さない）' : 'この事業所を有効に戻す', style: 'margin-top:14px;width:100%' });
+    act.addEventListener('click', async function () {
+      try { await authed('saveOffice', { id: o.id, active: !o.active }); o.active = !o.active; msg('保存しました', 'ok');
+        $('ovl').classList.add('hidden'); renderOffices(); refreshMaster(); } catch (e) { msg(e.message); }
+    });
+    var add = el('button', { text: '足す', onclick: async function () {
+      try { var r = await authed('addCm', { officeId: o.id, name: nm.value }); if (!r.existed) o.cms.push(r); msg(r.existed ? '既に名簿にいます' : '足しました', 'ok'); editOffice(o); refreshMaster(); }
+      catch (e) { msg(e.message); }
+    } });
+    sh.appendChild(el('div', { cls: 'askBtns' }, [el('button', { cls: 'sub', text: '閉じる', onclick: function () { $('ovl').classList.add('hidden'); renderOffices(); } }), add]));
+    sh.appendChild(act);
+    $('ovl').classList.remove('hidden');
+  }
+  // 名簿を変えたら、記録画面の選択肢（init）も読み直す
+  async function refreshMaster() {
+    try {
+      var d = await authed('init'); S.d.offices = d.offices; S.d.cms = d.cms;
+      fillOffices(); renderBatchList();
+    } catch (e) { /* 次に開いたときに読み直る */ }
+  }
+  $('aPrev').addEventListener('click', function () { S.allYm = shiftYm(S.allYm, -1); renderAll(); });
+  $('aNext').addEventListener('click', function () { S.allYm = shiftYm(S.allYm, 1); renderAll(); });
+
   // ── 最近の記録 ──
   async function renderList() {
     var box = $('pList'); clear(box);
     box.appendChild(el('div', { cls: 'muted', text: '読み込み中…' }));
-    var list;
-    try { list = await authed('myRecent'); } catch (e) { msg(e.message); return; }
+    var list, my = ++S.seq.list;
+    try { list = await authed('myRecent'); } catch (e) { if (my === S.seq.list) msg(e.message); return; }
+    if (my !== S.seq.list) return;
     clear(box);
     box.appendChild(el('div', { cls: 'muted', text: '自分の記録（' + S.d.pastDays + '日分）。間違えた記録は取り消せます。' }));
     if (!list.length) { box.appendChild(el('div', { cls: 'muted', style: 'margin-top:12px', text: 'まだ記録がありません' })); return; }
@@ -820,17 +1044,19 @@
 
   // ── 切り替え ──
   function tab(on) {
-    [['rec', 'tabRec', 'pRec'], ['slots', 'tabSlots', 'pSlots'], ['cases', 'tabCases', 'pCases'], ['me', 'tabMe', 'pMe']].forEach(function (t) {
+    [['rec', 'tabRec', 'pRec'], ['slots', 'tabSlots', 'pSlots'], ['cases', 'tabCases', 'pCases'], ['me', 'tabMe', 'pMe'], ['all', 'tabAll', 'pAll']].forEach(function (t) {
       $(t[1]).classList.toggle('on', on === t[0]); $(t[2]).classList.toggle('hidden', on !== t[0]);
     });
     if (on === 'slots') { slotsOfficeOptions(); renderSlots(); }
     if (on === 'cases') renderCases();
     if (on === 'me') { renderMe(); renderList(); }
+    if (on === 'all') renderAll();
   }
   $('tabRec').addEventListener('click', function () { tab('rec'); });
   $('tabSlots').addEventListener('click', function () { tab('slots'); });
   $('tabCases').addEventListener('click', function () { tab('cases'); });
   $('tabMe').addEventListener('click', function () { tab('me'); });
+  $('tabAll').addEventListener('click', function () { tab('all'); });
   function mode(m) {
     $('modeOne').classList.toggle('on', m === 'one'); $('modeBatch').classList.toggle('on', m === 'batch');
     $('fOne').classList.toggle('hidden', m !== 'one'); $('fBatch').classList.toggle('hidden', m !== 'batch');
