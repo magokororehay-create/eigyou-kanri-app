@@ -855,7 +855,9 @@
   function bars(box, rows) {
     clear(box);
     var max = Math.max.apply(null, [1].concat(rows.map(function (r) { return r.n; })));
-    if (!rows.length) { box.appendChild(el('div', { cls: 'muted', text: 'まだありません' })); return; }
+    if (!rows.length || rows.every(function (r) { return !r.n; })) {
+      box.appendChild(el('div', { cls: 'muted', text: 'まだ記録がありません（記録が付くと、ここに棒で出ます）' })); return;
+    }
     rows.forEach(function (r) {
       var fill = el('div', { cls: 'fill' }); fill.style.width = (r.n / max * 100) + '%';
       box.appendChild(el('div', { cls: 'br', title: r.title || (r.label + '：' + r.val) }, [
@@ -889,7 +891,10 @@
       return { label: +x.ym.slice(5, 7) + '月', n: x.total.visits, val: x.total.visits + '件',
                title: x.ym + '：営業' + x.total.visits + '・問い合わせ' + x.total.inquiries + '・契約' + x.total.contracts };
     }));
-    var max = Math.max.apply(null, [1].concat(d.heat.rows.map(function (r) { return Math.max.apply(null, r.counts); })));
+    var max = Math.max.apply(null, [0].concat(d.heat.rows.map(function (r) { return Math.max.apply(null, r.counts); })));
+    if (!max) {
+      clear($('aHeat')); $('aHeat').appendChild(el('div', { cls: 'muted', text: 'この月の記録はまだありません' }));
+    } else {
     var ht = el('table', {}), head = el('tr', {}, [el('th', { text: '' })]);
     d.heat.dates.forEach(function (x) { head.appendChild(el('th', { text: String(+x.slice(8, 10)) })); });
     ht.appendChild(head);
@@ -902,6 +907,7 @@
       ht.appendChild(tr);
     });
     clear($('aHeat')); $('aHeat').appendChild(ht);
+    }
     bars($('aAreas'), d.areas.map(function (a) { return { label: a.area, n: a.visits, val: a.visits + '件・問' + a.inquiries }; }));
     bars($('aRatesO'), d.ratesOffice.map(function (x) { return { label: x.name, n: x.rate, val: pct(x.rate) + '（' + x.inquiries + '/' + x.visits + '）' }; }));
     bars($('aRatesI'), d.ratesItem.map(function (x) { return { label: x.key, n: x.rate, val: pct(x.rate) + '（' + x.inquiries + '/' + x.visits + '）' }; }));
