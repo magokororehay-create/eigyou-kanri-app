@@ -211,6 +211,10 @@
       <div class="muted">週間訪問スケジュールから、新しい利用者の訪問を始められる時刻を出します。移動の時間は差し引き済みです。この画面はケアマネに見せても大丈夫です。</div>
       <label class="lb">事業所（選ぶと担当リハの枠が先頭に）</label>
       <select id="sOffice"></select>
+      <div id="sAreaBox" class="hidden">
+        <label class="lb">問い合わせの方の地区（任意・選ぶと近ければ前後の移動10分の枠も出します）</label>
+        <select id="sArea"></select>
+      </div>
       <div id="sList"></div>
     </div>
 
@@ -712,9 +716,10 @@
     var box = $('sList'); clear(box);
     box.appendChild(el('div', { cls: 'muted', style: 'margin-top:12px', text: '読み込み中…' }));
     var d, my = ++S.seq.slots;
-    try { d = await authed('slots', { officeId: $('sOffice').value }); } catch (e) { if (my === S.seq.slots) { clear(box); msg(e.message); } return; }
+    try { d = await authed('slots', { officeId: $('sOffice').value, area: $('sArea').value }); } catch (e) { if (my === S.seq.slots) { clear(box); msg(e.message); } return; }
     if (my !== S.seq.slots) return;
     clear(box);
+    slotsAreaOptions(d.areas || []);
     if (!d.ranges.length) box.appendChild(el('div', { cls: 'muted', style: 'margin-top:12px', text: '今の予定では空き枠がありません' }));
     ['月', '火', '水', '木', '金'].forEach(function (wd) {
       var list = d.ranges.filter(function (r) { return r.weekday === wd; });
@@ -723,7 +728,8 @@
       list.forEach(function (r) {
         day.appendChild(el('div', { cls: 'slot' + (r.staff === d.preferred ? ' pref' : '') }, [
           el('span', { cls: 'st', text: r.staff }),
-          el('span', { cls: 'tm', text: r.from === r.to ? r.from + ' 開始' : r.from + '〜' + r.to + ' のどこかで開始' })]));
+          el('span', { cls: 'tm', text: (r.from === r.to ? r.from + ' 開始' : r.from + '〜' + r.to + ' のどこかで開始') +
+            (r.note ? '（' + r.note + '）' : '') })]));
       });
       box.appendChild(day);
     });
@@ -731,7 +737,18 @@
       box.appendChild(el('div', { cls: 'warnbox', text: 'スケジュールに名簿に無い担当名があり、その列は使っていません：' + d.unknownStaff.join('、') + '（管理者へ）' }));
     }
   }
+  // 訪問台帳から読むときだけ地区の選択肢が届く（スケジュール表から読むときは出さない）。
+  function slotsAreaOptions(areas) {
+    var sel = $('sArea'), keep = sel.value;
+    $('sAreaBox').classList.toggle('hidden', !areas.length);
+    if (sel.options.length === areas.length + 1) return;
+    clear(sel);
+    sel.appendChild(el('option', { value: '', text: '選ばない（前後の移動は20分で見る）' }));
+    areas.forEach(function (a) { sel.appendChild(el('option', { value: a, text: a })); });
+    sel.value = keep;
+  }
   $('sOffice').addEventListener('change', renderSlots);
+  $('sArea').addEventListener('change', renderSlots);
 
   // ── 案件 ──
   async function renderCases() {
